@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>큰 길 미로</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+@font-face{font-family:'SchoolSafeOuting';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-5@1.0/HakgyoansimNadeuriTTF-L.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'SchoolSafeOuting';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-5@1.0/HakgyoansimNadeuriTTF-B.woff2') format('woff2');font-weight:700;font-display:swap}
+:root{
+  --bg:#FEF5F7; --panel:#FFFCFD; --ink:#5A3A44; --muted:#9A7680; --line:#F6E1E7;
+  --berry:#FADBE3; --berry-ink:#5A3A44; --chip:#FFFFFF; --focus:#E8A3B6;
+  color-scheme:light;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#2A2124;--panel:#33292D;--ink:#F7E9ED;--muted:#C9AEB6;--line:#4A3B40;--berry:#E9BFCB;--berry-ink:#2A2124;--chip:#3A2F33;--focus:#F0C2CF;color-scheme:dark}
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'SchoolSafeOuting',"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;font-size:17px;line-height:1.65;word-break:keep-all}
+.wrap{max-width:1200px;margin:0 auto;padding:36px 22px 64px;display:grid;grid-template-columns:330px 1fr;gap:36px;align-items:start}
+@media (max-width:860px){.wrap{grid-template-columns:1fr;gap:28px;padding-top:24px}}
+
+header h1{font-size:2.6rem;line-height:1.1;margin:0;font-weight:700}
+header p{margin:10px 0 24px;color:var(--muted);max-width:30ch}
+
+aside{position:sticky;top:calc(20px + env(safe-area-inset-top,0px))}
+@media (max-width:860px){aside{position:static}}
+.panel{background:var(--panel);border:1.5px solid var(--line);border-radius:18px;padding:20px}
+.field{margin-bottom:20px}
+.field>label{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;margin-bottom:6px}
+.field output{font-weight:400;color:var(--muted);font-size:.92rem}
+input[type=range]{width:100%;height:28px;background:transparent;-webkit-appearance:none;appearance:none}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:999px;background:var(--line)}
+input[type=range]::-moz-range-track{height:8px;border-radius:999px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-7px;border-radius:50%;background:var(--berry);border:2px solid var(--focus)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--berry);border:2px solid var(--focus)}
+input[type=text]{width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.row{display:flex;gap:8px}.row input{flex:1;min-width:0}
+.hint{font-size:.85rem;color:var(--muted);margin:5px 0 0;line-height:1.5}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);padding:9px 13px;white-space:nowrap}
+button:hover{border-color:var(--ink)}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.primary{display:block;width:100%;background:var(--berry);color:var(--berry-ink);border:1.5px solid var(--focus);font-weight:700;font-size:1.15rem;padding:13px;border-radius:14px;box-shadow:0 3px 0 var(--focus)}
+.primary:active{transform:translateY(2px);box-shadow:0 1px 0 var(--focus)}
+.secondary{display:block;width:100%;margin-top:12px;padding:10px;background:transparent}
+.msg{font-size:.9rem;color:var(--muted);min-height:1.2em;margin-top:8px}
+details{margin-top:18px;border-top:1.5px dashed var(--line);padding-top:14px}
+summary{cursor:pointer;font-weight:700}
+details .row{margin-top:10px}
+
+.tagbox{margin-top:4px;padding:10px 12px;background:var(--bg);border-radius:10px;font-size:.8rem;color:var(--muted);line-height:1.5}
+.tagbox .corner{font-family:Helvetica,Arial,sans-serif;white-space:pre;color:var(--ink)}
+.tagbox .explain{display:flex;flex-wrap:wrap;gap:0 12px;margin-top:4px}
+.tagbox .explain b{font-family:Helvetica,Arial,sans-serif;color:var(--ink);margin-right:3px}
+.tagbox p{margin:4px 0 0}
+
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.tabs button{border-radius:999px;padding:7px 16px;background:var(--chip);border-color:var(--line)}
+.tabs button[aria-pressed="true"]{background:var(--berry);color:var(--berry-ink);border-color:var(--focus);font-weight:700}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:18px 16px}
+.thumb{background:none;border:none;padding:0;text-align:center;color:var(--ink)}
+.thumb svg{display:block;width:100%;height:auto;background:#fff;border-radius:4px;box-shadow:0 8px 18px -13px rgba(180,110,130,.45);transition:transform .15s}
+.thumb:hover svg{transform:translateY(-3px) rotate(-.6deg)}
+@media (prefers-reduced-motion:reduce){.thumb svg{transition:none}.thumb:hover svg{transform:none}}
+
+.why{border-bottom:1.5px solid var(--line);padding-bottom:20px;margin:0 0 30px;max-width:68ch}
+.why h2{font-size:1.45rem;margin:2px 0 12px}
+.why h2{font-size:1.45rem;margin:0 0 12px}
+.why p{margin:0 0 14px}
+.why ol{margin:6px 0 0;padding-left:1.3em;font-size:.88rem;color:var(--muted)}
+.why li{margin-bottom:8px}
+.why a{color:var(--ink);text-underline-offset:3px}
+
+dialog{border:none;border-radius:18px;padding:0;background:var(--panel);color:var(--ink);max-width:min(94vw,640px);width:100%}
+dialog::backdrop{background:rgba(90,58,68,.45)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;border-bottom:1.5px solid var(--line);flex-wrap:wrap}
+.dlg-head strong{font-size:1.25rem}
+.dlg-body{padding:16px;max-height:80vh;overflow:auto}
+.dlg-body svg{width:100%;height:auto;background:#fff;display:block;border-radius:3px}
+.toggle{display:flex;align-items:center;gap:6px}
+.toggle input{width:20px;height:20px;accent-color:var(--focus)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside>
+    <header>
+      <h1>큰 길 미로</h1>
+      <p>넓은 길, 굵은 선, 한 장에 하나. 뒤로 갈수록 아주 조금씩 어려워집니다.</p>
+    </header>
+    <div class="panel">
+      <div class="field">
+        <label for="count">장수 <output id="countOut"></output></label>
+        <input id="count" type="range" min="5" max="60" step="5" value="30">
+      </div>
+      <div class="field">
+        <label for="easy">첫 장 가로 칸 <output id="easyOut"></output></label>
+        <input id="easy" type="range" min="5" max="14" value="8">
+      </div>
+      <div class="field">
+        <label for="hard">마지막 장 가로 칸 <output id="hardOut"></output></label>
+        <input id="hard" type="range" min="6" max="18" value="14">
+        <p class="hint">칸이 적을수록 길이 넓어집니다.</p>
+      </div>
+      <div class="field">
+        <label for="seed">미로 번호</label>
+        <div class="row"><input id="seed" type="text" inputmode="numeric" maxlength="9" autocomplete="off"><button id="shuffle" type="button">새로 섞기</button></div>
+      </div>
+      <button id="savePdf" class="primary" type="button">문제 PDF 저장</button>
+      <button id="saveKey" class="secondary" type="button">정답 PDF 저장</button>
+      <div id="msg" class="msg" role="status" aria-live="polite"></div>
+      <div class="tagbox" aria-label="종이 왼쪽 위에 작게 찍히는 숫자">
+        <div class="corner" id="tagLine"></div>
+        <div class="explain">
+          <span><b id="t1"></b>장수</span>
+          <span><b id="t2"></b>첫 장 가로 칸</span>
+          <span><b id="t3"></b>마지막 장 가로 칸</span>
+          <span><b id="t4"></b>미로 번호</span>
+        </div>
+        <p>문제지와 정답지 모든 장의 왼쪽 위에 이렇게 작게 찍힙니다.</p>
+      </div>
+      <details>
+        <summary>종이에 적힌 숫자로 다시 만들기</summary>
+        <p class="hint">출력한 종이 왼쪽 위의 숫자 네 개를 순서대로 적으면 같은 미로가 다시 나옵니다.</p>
+        <div class="row"><input id="restore" type="text" inputmode="numeric" placeholder="30 8 14 6401" autocomplete="off"><button id="restoreBtn" type="button">불러오기</button></div>
+        <div id="restoreMsg" class="hint" role="status" aria-live="polite"></div>
+      </details>
+    </div>
+  </aside>
+
+  <main>
+    <section class="why" aria-labelledby="whyTitle">
+      <h2 id="whyTitle">만든 이유</h2>
+      <p>할머니께서는 심심하실 때 미로 찾기 하는 것을 좋아하셔서 하루에도 여러 장을 푸십니다. 그런데 시중에서 파는 미로책은 시리즈가 많지 않아 금방 다 풀게 되고, 난이도가 너무 쉽거나 할머니 시력으로는 잘 보이지 않을 만큼 길이 좁고 작습니다. 난이도도 다양하지 않아 알맞게 맞추기 어렵고, 손이나 펜으로 길을 따라 그릴 공간은 좁으며, 불필요한 그림과 글도 많습니다. 그래서 길은 넓게, 선은 굵게, 한 장에 미로 하나만 담고, 뒤로 갈수록 아주 조금씩 어려워지도록 직접 만들었고, 반드시 정답이 있도록 보장되어 있습니다.<br>언제든 원하는 분량과 난이도로 다양하게 만들 수 있습니다!!!</p>
+      <p>세계보건기구(WHO)가 2026년 발표한 인지 저하, 치매 위험 감소 가이드라인 2판에서는 인지 저하와 치매 위험을 줄이기 위해 인지 자극 활동에 참여하는 것을 권장합니다. 이와 함께 신체 활동, 사람들과의 교류, 균형 잡힌 식사 등 여러 생활 습관을 함께 챙기는 것이 중요하다고 강조합니다. 미국 국립노화연구소(NIA)는 나이가 들어서도 즐거운 활동을 꾸준히 이어 가기를 권장하고 있습니다.</p>
+      <p>나와 내가 사랑하는 우리 부모님, 할머니, 할아버지 모두의 건강을 위하여 🩷</p>
+      <ol>
+        <li><a href="https://www.who.int/publications/i/item/9789240123557" target="_blank" rel="noopener">WHO, Risk reduction of cognitive decline and dementia: WHO guidelines, second edition (2026)</a></li>
+        <li><a href="https://www.nia.nih.gov/health/healthy-aging/participating-activities-you-enjoy-you-age" target="_blank" rel="noopener">NIA, Participating in Activities You Enjoy As You Age</a></li>
+        <li><a href="https://www.nia.nih.gov/health/brain-health/cognitive-health-and-older-adults" target="_blank" rel="noopener">NIA, Cognitive Health and Older Adults</a></li>
+      </ol>
+    </section>
+
+    <div class="tabs" id="tabs" role="group" aria-label="보여 줄 장 고르기"></div>
+    <div class="grid" id="grid"></div>
+
+  </main>
+</div>
+
+<dialog id="dlg">
+  <div class="dlg-head">
+    <strong id="dlgTitle"></strong>
+    <label class="toggle"><input type="checkbox" id="showSol"> 정답 보기</label>
+    <button type="button" id="dlgClose">닫기</button>
+  </div>
+  <div class="dlg-body"><div id="dlgSvg"></div></div>
+</dialog>
+
+<script>
+"use strict";
+
+const PAGE = { w: 210, h: 297, left: 12, right: 12, top: 14, bottom: 30, numY: 286 };
+const OUTER_W = 1.5;
+const INNER_W = 1.0;
+const AREA_W = PAGE.w - PAGE.left - PAGE.right;
+const AREA_H = PAGE.h - PAGE.top - PAGE.bottom;
+
+const N = 1, E = 2, S = 4, W = 8;
+
+function hashString(text) {
+  let h = 2166136261;
+  for (const ch of String(text)) {
+    h ^= ch.codePointAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function createRandom(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function generateMaze(cols, rows, newestBias, random) {
+  const size = cols * rows;
+  const open = new Uint8Array(size);
+  const visited = new Uint8Array(size);
+  const active = [];
+  const first = Math.floor(random() * size);
+  visited[first] = 1;
+  active.push(first);
+
+  while (active.length) {
+    const index = random() < newestBias ? active.length - 1 : Math.floor(random() * active.length);
+    const cell = active[index];
+    const x = cell % cols;
+    const y = Math.floor(cell / cols);
+    const options = [];
+    if (y > 0 && !visited[cell - cols]) options.push([cell - cols, N, S]);
+    if (x < cols - 1 && !visited[cell + 1]) options.push([cell + 1, E, W]);
+    if (y < rows - 1 && !visited[cell + cols]) options.push([cell + cols, S, N]);
+    if (x > 0 && !visited[cell - 1]) options.push([cell - 1, W, E]);
+
+    if (!options.length) {
+      active.splice(index, 1);
+      continue;
+    }
+
+    const [next, side, opposite] = options[Math.floor(random() * options.length)];
+    open[cell] |= side;
+    open[next] |= opposite;
+    visited[next] = 1;
+    active.push(next);
+  }
+  return open;
+}
+
+function neighbors(open, cell, cols) {
+  const result = [];
+  if (open[cell] & N) result.push(cell - cols);
+  if (open[cell] & E) result.push(cell + 1);
+  if (open[cell] & S) result.push(cell + cols);
+  if (open[cell] & W) result.push(cell - 1);
+  return result;
+}
+
+function solve(open, cols, rows, start, end) {
+  const size = cols * rows;
+  let edges = 0;
+  let consistent = true;
+
+  for (let cell = 0; cell < size; cell++) {
+    const x = cell % cols;
+    const y = Math.floor(cell / cols);
+    if (open[cell] & E) {
+      edges++;
+      if (x === cols - 1 || !(open[cell + 1] & W)) consistent = false;
+    }
+    if (open[cell] & S) {
+      edges++;
+      if (y === rows - 1 || !(open[cell + cols] & N)) consistent = false;
+    }
+    if ((open[cell] & N && y === 0) || (open[cell] & W && x === 0)) consistent = false;
+  }
+
+  const previous = new Int32Array(size).fill(-2);
+  previous[start] = -1;
+  const queue = [start];
+  for (let i = 0; i < queue.length; i++) {
+    for (const next of neighbors(open, queue[i], cols)) {
+      if (previous[next] === -2) {
+        previous[next] = queue[i];
+        queue.push(next);
+      }
+    }
+  }
+
+  const path = [];
+  if (previous[end] !== -2) {
+    for (let cell = end; cell !== -1; cell = previous[cell]) path.push(cell);
+    path.reverse();
+  }
+
+  const valid = consistent && queue.length === size && edges === size - 1 && path.length > 1;
+  return valid ? path : null;
+}
+
+function endpoints(layout, cols, rows, random) {
+  const clampCol = (c) => Math.max(0, Math.min(cols - 1, c));
+  const clampRow = (r) => Math.max(0, Math.min(rows - 1, r));
+  const jitter = () => Math.floor(random() * 3) - 1;
+  const midCol = Math.floor(cols / 2);
+  const midRow = Math.floor(rows / 2);
+  const layouts = [
+    [[0, 0], [cols - 1, rows - 1]],
+    [[cols - 1, 0], [0, rows - 1]],
+    [[clampCol(midCol + jitter()), 0], [clampCol(midCol + jitter()), rows - 1]],
+    [[0, rows - 1], [cols - 1, 0]],
+    [[0, clampRow(midRow - 2 + jitter())], [cols - 1, clampRow(midRow + 2 + jitter())]],
+    [[cols - 1, rows - 1], [0, 0]],
+  ];
+  const [[sx, sy], [ex, ey]] = layouts[layout];
+  return [sy * cols + sx, ey * cols + ex];
+}
+
+function buildSet(count, firstCols, lastCols, seed) {
+  const base = hashString(seed);
+  const pages = [];
+  let previousLayout = -1;
+
+  for (let i = 0; i < count; i++) {
+    const progress = count > 1 ? i / (count - 1) : 0;
+    const random = createRandom(base ^ Math.imul(i + 1, 2654435761));
+    const cols = Math.round(firstCols + (lastCols - firstCols) * progress);
+    const cell = AREA_W / cols;
+    const rows = Math.max(2, Math.floor(AREA_H / cell));
+    const newestBias = 0.9 - 0.35 * progress;
+
+    let layout;
+    do layout = Math.floor(random() * 6);
+    while (layout === previousLayout);
+    previousLayout = layout;
+
+    const [start, end] = endpoints(layout, cols, rows, random);
+    const candidates = [];
+    for (let k = 0; k < 12; k++) {
+      const open = generateMaze(cols, rows, newestBias, random);
+      const path = solve(open, cols, rows, start, end);
+      if (path) candidates.push({ open, path });
+    }
+
+    const minLength = (cols + rows) * 0.9;
+    let pool = candidates.filter((c) => c.path.length >= minLength);
+    if (!pool.length) pool = candidates;
+    pool.sort((a, b) => a.path.length - b.path.length);
+    const chosen = pool[Math.floor(pool.length / 2)];
+
+    pages.push({ number: i + 1, cols, rows, cell, start, end, open: chosen.open, path: chosen.path });
+  }
+  return pages;
+}
+
+function layoutPage(page) {
+  const { cols, rows, cell, open } = page;
+  const width = cols * cell;
+  const height = rows * cell;
+  const left = (PAGE.w - width) / 2;
+  const top = PAGE.top + (AREA_H - height) / 2;
+  const walls = [];
+
+  for (let r = 1; r < rows; r++) {
+    let from = -1;
+    for (let c = 0; c <= cols; c++) {
+      const wall = c < cols && !(open[(r - 1) * cols + c] & S);
+      if (wall && from < 0) from = c;
+      if (!wall && from >= 0) {
+        walls.push([left + from * cell, top + r * cell, left + c * cell, top + r * cell]);
+        from = -1;
+      }
+    }
+  }
+  for (let c = 1; c < cols; c++) {
+    let from = -1;
+    for (let r = 0; r <= rows; r++) {
+      const wall = r < rows && !(open[r * cols + c - 1] & E);
+      if (wall && from < 0) from = r;
+      if (!wall && from >= 0) {
+        walls.push([left + c * cell, top + from * cell, left + c * cell, top + r * cell]);
+        from = -1;
+      }
+    }
+  }
+
+  const center = (i) => [left + ((i % cols) + 0.5) * cell, top + (Math.floor(i / cols) + 0.5) * cell];
+  const marker = Math.max(8, Math.min(14, cell * 0.62));
+  return { left, top, width, height, walls, center, marker };
+}
+
+let settings = { count: 30, first: 8, last: 14, seed: "1" };
+
+function settingsLine() {
+  return `${settings.count}   ${settings.first}   ${settings.last}   ${settings.seed}`;
+}
+
+function pageSvg(page, showAnswer, small) {
+  const g = layoutPage(page);
+  const n = (v) => v.toFixed(2);
+  const [sx, sy] = g.center(page.start);
+  const [ex, ey] = g.center(page.end);
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PAGE.w} ${PAGE.h}" role="img" aria-label="${page.number}번 미로">`;
+  svg += `<rect width="${PAGE.w}" height="${PAGE.h}" fill="#fff"/>`;
+
+  if (showAnswer) {
+    const points = page.path.map((i) => g.center(i).map(n).join(",")).join(" ");
+    svg += `<polyline points="${points}" fill="none" stroke="#9AA3AD" stroke-width="${n(page.cell * 0.32)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+
+  svg += `<g stroke="#000" stroke-width="${INNER_W}" stroke-linecap="round">`;
+  for (const [x1, y1, x2, y2] of g.walls) {
+    svg += `<line x1="${n(x1)}" y1="${n(y1)}" x2="${n(x2)}" y2="${n(y2)}"/>`;
+  }
+  svg += `</g>`;
+  svg += `<rect x="${n(g.left)}" y="${n(g.top)}" width="${n(g.width)}" height="${n(g.height)}" fill="none" stroke="#000" stroke-width="${OUTER_W}" stroke-linejoin="round"/>`;
+  svg += `<circle cx="${n(sx)}" cy="${n(sy)}" r="${n(g.marker / 2)}" fill="#000"/>`;
+  svg += `<circle cx="${n(ex)}" cy="${n(ey)}" r="${n(g.marker / 2 - 0.75)}" fill="#fff" stroke="#000" stroke-width="1.5"/>`;
+  svg += `<circle cx="${n(ex)}" cy="${n(ey)}" r="${n(g.marker * 0.16)}" fill="#000"/>`;
+  svg += `<text x="${PAGE.left}" y="7" font-family="Helvetica,Arial,sans-serif" font-size="2.1" fill="#787878" xml:space="preserve">${settingsLine()}</text>`;
+  svg += `<text x="${PAGE.w / 2}" y="${PAGE.numY}" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="${small ? 14 : 8.5}" fill="#000">${page.number}</text>`;
+  return svg + `</svg>`;
+}
+
+function buildPdf(pages, showAnswer) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+
+  pages.forEach((page, i) => {
+    if (i > 0) doc.addPage("a4", "portrait");
+    const g = layoutPage(page);
+    const [sx, sy] = g.center(page.start);
+    const [ex, ey] = g.center(page.end);
+    doc.setLineCap("round");
+    doc.setLineJoin("round");
+
+    if (showAnswer) {
+      doc.setDrawColor(154, 163, 173);
+      doc.setLineWidth(page.cell * 0.32);
+      for (let k = 1; k < page.path.length; k++) {
+        const [x1, y1] = g.center(page.path[k - 1]);
+        const [x2, y2] = g.center(page.path[k]);
+        doc.line(x1, y1, x2, y2);
+      }
+    }
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(INNER_W);
+    for (const [x1, y1, x2, y2] of g.walls) doc.line(x1, y1, x2, y2);
+    doc.setLineWidth(OUTER_W);
+    doc.rect(g.left, g.top, g.width, g.height, "S");
+
+    doc.setFillColor(0, 0, 0);
+    doc.circle(sx, sy, g.marker / 2, "F");
+    doc.setFillColor(255, 255, 255);
+    doc.setLineWidth(1.5);
+    doc.circle(ex, ey, g.marker / 2 - 0.75, "FD");
+    doc.setFillColor(0, 0, 0);
+    doc.circle(ex, ey, g.marker * 0.16, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.setTextColor(0, 0, 0);
+    doc.text(String(page.number), PAGE.w / 2, PAGE.numY, { align: "center" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6);
+    doc.setTextColor(120, 120, 120);
+    doc.text(settingsLine(), PAGE.left, 7);
+  });
+
+  return doc.output("blob");
+}
+
+const $ = (id) => document.getElementById(id);
+let pages = [];
+let current = null;
+let tab = -1;
+
+function randomSeed() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function sections(count) {
+  const size = Math.ceil(count / 3);
+  const result = [];
+  for (let b = 0; b < 3; b++) {
+    const from = b * size;
+    const to = Math.min(count, (b + 1) * size);
+    if (from < to) result.push([from, to]);
+  }
+  return result;
+}
+
+function renderTabs() {
+  const list = sections(pages.length);
+  if (tab >= list.length) tab = -1;
+  const items = [[-1, `전체 ${pages.length}장`], ...list.map(([from, to], i) => [i, `${from + 1}–${to}장`])];
+  $("tabs").innerHTML = items
+    .map(([i, label]) => `<button type="button" data-tab="${i}" aria-pressed="${i === tab}">${label}</button>`)
+    .join("");
+}
+
+function renderGrid() {
+  const list = sections(pages.length);
+  const shown = tab < 0 ? pages : pages.slice(list[tab][0], list[tab][1]);
+  $("grid").innerHTML = shown
+    .map((page) => `<button class="thumb" type="button" data-n="${page.number}" aria-label="${page.number}번 미로 크게 보기">${pageSvg(page, false, true)}</button>`)
+    .join("");
+}
+
+function update() {
+  const count = Number($("count").value);
+  const first = Number($("easy").value);
+  let last = Number($("hard").value);
+  if (last < first) {
+    last = first;
+    $("hard").value = last;
+  }
+
+  const digits = $("seed").value.replace(/\D/g, "");
+  if (digits !== $("seed").value) $("seed").value = digits;
+  const seed = digits || "1";
+
+  $("countOut").textContent = `${count}장`;
+  $("easyOut").textContent = `${first}칸 · 길 폭 약 ${(AREA_W / first - INNER_W).toFixed(0)}mm`;
+  $("hardOut").textContent = `${last}칸 · 길 폭 약 ${(AREA_W / last - INNER_W).toFixed(0)}mm`;
+
+  settings = { count, first, last, seed };
+  pages = buildSet(count, first, last, seed);
+
+  $("tagLine").textContent = settingsLine();
+  $("t1").textContent = count;
+  $("t2").textContent = first;
+  $("t3").textContent = last;
+  $("t4").textContent = seed;
+  renderTabs();
+  renderGrid();
+}
+
+["count", "easy", "hard"].forEach((id) => $(id).addEventListener("input", update));
+$("seed").addEventListener("change", update);
+$("shuffle").addEventListener("click", () => {
+  $("seed").value = randomSeed();
+  update();
+});
+
+$("tabs").addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  tab = Number(button.dataset.tab);
+  renderTabs();
+  renderGrid();
+});
+
+$("restoreBtn").addEventListener("click", () => {
+  const numbers = $("restore").value.match(/\d+/g) || [];
+  const message = $("restoreMsg");
+  if (numbers.length < 4) {
+    message.textContent = "숫자 네 개를 순서대로 적어 주세요. 예: 30 8 14 6401";
+    return;
+  }
+
+  const [count, first, last] = numbers.slice(0, 3).map(Number);
+  const seed = numbers[3];
+  const inRange = (el, v) => v >= Number(el.min) && v <= Number(el.max);
+  if (!inRange($("count"), count) || count % 5 !== 0 || !inRange($("easy"), first) || !inRange($("hard"), last)) {
+    message.textContent = "이 화면에서 고를 수 있는 범위를 벗어난 숫자가 있습니다.";
+    return;
+  }
+
+  $("count").value = count;
+  $("easy").value = first;
+  $("hard").value = last;
+  $("seed").value = seed;
+  tab = -1;
+  update();
+  message.textContent = `불러왔습니다. ${count}장, ${first}칸에서 ${last}칸, 미로 번호 ${seed}.`;
+});
+
+function showCurrent() {
+  $("dlgTitle").textContent = `${current.number}번 미로`;
+  $("dlgSvg").innerHTML = pageSvg(current, $("showSol").checked, false);
+}
+
+$("grid").addEventListener("click", (event) => {
+  const button = event.target.closest(".thumb");
+  if (!button) return;
+  current = pages[Number(button.dataset.n) - 1];
+  $("showSol").checked = false;
+  showCurrent();
+  $("dlg").showModal();
+});
+$("showSol").addEventListener("change", showCurrent);
+$("dlgClose").addEventListener("click", () => $("dlg").close());
+
+function saveFile(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  $("msg").textContent = `${name} 저장했습니다.`;
+}
+
+function fileName(prefix) {
+  return `${prefix}_${settings.count}장_${settings.first}-${settings.last}칸_${settings.seed}.pdf`;
+}
+
+function pdfReady() {
+  if (window.jspdf) return true;
+  $("msg").textContent = "PDF 도구를 불러오는 중입니다. 잠시 뒤 다시 눌러 주세요.";
+  return false;
+}
+
+$("savePdf").addEventListener("click", () => {
+  if (pdfReady()) saveFile(fileName("미로"), buildPdf(pages, false));
+});
+$("saveKey").addEventListener("click", () => {
+  if (pdfReady()) saveFile(fileName("미로_정답"), buildPdf(pages, true));
+});
+
+update();
+</script>
+</body>
+</html>

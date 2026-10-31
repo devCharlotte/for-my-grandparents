@@ -52,6 +52,9 @@ button{font:inherit;cursor:pointer;border-radius:10px;border:1.5px solid var(--l
 button:hover{border-color:var(--focus)}
 button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .ops{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.presets{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.presets button{background:var(--chip);font-weight:700;padding:10px 6px}
+.presets button[aria-pressed="true"]{background:var(--berry);border-color:var(--focus)}
 .ops button{font-size:1.35rem;padding:6px 0;font-family:'PuzzleKR',sans-serif;background:var(--chip)}
 .ops button[aria-pressed="true"]{background:var(--berry);border-color:var(--focus)}
 .primary{display:block;width:100%;background:var(--berry);color:var(--berry-ink);border:1.5px solid var(--focus);font-weight:700;font-size:1.15rem;padding:13px;border-radius:14px;box-shadow:0 3px 0 var(--focus)}
@@ -63,6 +66,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .tagbox .explain{display:flex;flex-wrap:wrap;gap:0 12px;margin-top:4px}
 .tagbox .explain b{font-family:'PuzzleKR',sans-serif;font-weight:400;color:var(--ink);margin-right:3px}
 .tagbox p{margin:4px 0 0}
+.made{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.made button{font-family:'PuzzleKR',sans-serif;font-size:.85rem;padding:4px 11px;border-radius:999px;background:var(--chip)}
 details{margin-top:18px;border-top:1.5px dashed var(--line);padding-top:14px}
 summary{cursor:pointer;font-weight:700}
 details .row{margin-top:10px}
@@ -115,6 +120,7 @@ dialog::backdrop{background:rgba(90,58,68,.45)}
         <div class="explain" id="tagExplain"></div>
         <p>문제지와 정답지 모든 장의 왼쪽 위에 이렇게 작게 찍힙니다.</p>
       </div>
+      <ul class="made" id="made" aria-label="만든 활동지 값" hidden></ul>
       <details>
         <summary>종이에 적힌 값으로 다시 만들기</summary>
         <p class="hint">출력한 종이 왼쪽 위의 값을 순서대로 적으면 같은 활동지가 다시 나옵니다.</p>
@@ -156,7 +162,7 @@ dialog::backdrop{background:rgba(90,58,68,.45)}
 <script>
 "use strict";
 
-const PAGE = { w: 210, h: 297, left: 12, right: 12, top: 14, bottom: 30, numY: 286 };
+const PAGE = { w: 210, h: 297, left: 12, right: 12, top: 14, bottom: 30, numY: 291 };
 const AREA_W = PAGE.w - PAGE.left - PAGE.right;
 const AREA_H = PAGE.h - PAGE.top - PAGE.bottom;
 const PT = 0.3528;
@@ -206,6 +212,9 @@ function shuffle(random, list) {
 const N = 1, E = 2, S = 4, W = 8;
 const MAZE_OUTER = 1.5;
 const MAZE_INNER = 1.0;
+const MAZE_ARROW = 11;
+const MAZE_W = PAGE.w - 2 * (5 + MAZE_ARROW);
+const MAZE_H = AREA_H - 2 * MAZE_ARROW;
 
 function generateMaze(cols, rows, newestBias, random) {
   const size = cols * rows;
@@ -291,22 +300,24 @@ function solveMaze(open, cols, rows, start, end) {
   return valid ? path : null;
 }
 
-function mazeEndpoints(layout, cols, rows, random) {
-  const clampCol = (c) => Math.max(0, Math.min(cols - 1, c));
-  const clampRow = (r) => Math.max(0, Math.min(rows - 1, r));
-  const jitter = () => Math.floor(random() * 3) - 1;
-  const midCol = Math.floor(cols / 2);
-  const midRow = Math.floor(rows / 2);
-  const layouts = [
-    [[0, 0], [cols - 1, rows - 1]],
-    [[cols - 1, 0], [0, rows - 1]],
-    [[clampCol(midCol + jitter()), 0], [clampCol(midCol + jitter()), rows - 1]],
-    [[0, rows - 1], [cols - 1, 0]],
-    [[0, clampRow(midRow - 2 + jitter())], [cols - 1, clampRow(midRow + 2 + jitter())]],
-    [[cols - 1, rows - 1], [0, 0]],
-  ];
-  const [[sx, sy], [ex, ey]] = layouts[layout];
-  return [sy * cols + sx, ey * cols + ex];
+const DOOR_PAIRS = [
+  [["top", 0, 1], ["bottom", 0, 1]],
+  [["left", 0, 1], ["right", 0, 1]],
+  [["top", 0, 0.35], ["right", 0.65, 1]],
+  [["left", 0, 0.35], ["bottom", 0.65, 1]],
+  [["top", 0.65, 1], ["left", 0.65, 1]],
+  [["right", 0, 0.35], ["bottom", 0, 0.35]],
+];
+
+function mazeDoors(layout, cols, rows, random) {
+  return DOOR_PAIRS[layout].map(([side, from, to]) => {
+    const t = from + random() * (to - from);
+    const along = (n) => Math.round(t * (n - 1));
+    if (side === "top") return { side, cell: along(cols) };
+    if (side === "bottom") return { side, cell: (rows - 1) * cols + along(cols) };
+    if (side === "left") return { side, cell: along(rows) * cols };
+    return { side, cell: along(rows) * cols + cols - 1 };
+  });
 }
 
 function buildMazes({ count, first, last, seed }) {
@@ -317,16 +328,17 @@ function buildMazes({ count, first, last, seed }) {
     const progress = count > 1 ? i / (count - 1) : 0;
     const random = pageRandom(seed, i);
     const cols = Math.round(first + (last - first) * progress);
-    const cell = AREA_W / cols;
-    const rows = Math.max(2, Math.floor(AREA_H / cell));
+    const cell = MAZE_W / cols;
+    const rows = Math.max(2, Math.floor(MAZE_H / cell));
     const newestBias = 0.9 - 0.35 * progress;
 
     let layout;
-    do layout = Math.floor(random() * 6);
+    do layout = Math.floor(random() * DOOR_PAIRS.length);
     while (layout === previousLayout);
     previousLayout = layout;
 
-    const [start, end] = mazeEndpoints(layout, cols, rows, random);
+    const doors = mazeDoors(layout, cols, rows, random);
+    const [start, end] = doors.map((d) => d.cell);
     const candidates = [];
     for (let k = 0; k < 12; k++) {
       const open = generateMaze(cols, rows, newestBias, random);
@@ -340,9 +352,21 @@ function buildMazes({ count, first, last, seed }) {
     pool.sort((a, b) => a.path.length - b.path.length);
     const chosen = pool[Math.floor(pool.length / 2)];
 
-    pages.push({ cols, rows, cell, start, end, open: chosen.open, path: chosen.path });
+    pages.push({ cols, rows, cell, start, end, doors, open: chosen.open, path: chosen.path });
   }
   return pages;
+}
+
+function mazeArrow(x, y, dx, dy, cell) {
+  const head = Math.min(5.5, cell * 0.36);
+  const tipX = x + dx * 0.5;
+  const tipY = y + dy * 0.5;
+  const baseX = tipX - dx * head * 1.3;
+  const baseY = tipY - dy * head * 1.3;
+  return [
+    { type: "line", x1: x - dx * MAZE_ARROW, y1: y - dy * MAZE_ARROW, x2: baseX, y2: baseY, width: 1.8 },
+    { type: "triangle", points: [[tipX, tipY], [baseX - dy * head, baseY - dx * head], [baseX + dy * head, baseY + dx * head]], fill: "#000" },
+  ];
 }
 
 function drawMaze(page, showAnswer) {
@@ -352,11 +376,19 @@ function drawMaze(page, showAnswer) {
   const left = (PAGE.w - width) / 2;
   const top = PAGE.top + (AREA_H - height) / 2;
   const center = (i) => [left + ((i % cols) + 0.5) * cell, top + (Math.floor(i / cols) + 0.5) * cell];
-  const marker = Math.max(8, Math.min(14, cell * 0.62));
+  const doors = page.doors.map(({ side, cell: i }) => {
+    const [cx, cy] = center(i);
+    if (side === "top") return { side, index: i % cols, x: cx, y: top, dx: 0, dy: 1 };
+    if (side === "bottom") return { side, index: i % cols, x: cx, y: top + height, dx: 0, dy: -1 };
+    if (side === "left") return { side, index: Math.floor(i / cols), x: left, y: cy, dx: 1, dy: 0 };
+    return { side, index: Math.floor(i / cols), x: left + width, y: cy, dx: -1, dy: 0 };
+  });
   const ops = [];
 
   if (showAnswer) {
-    ops.push({ type: "path", points: page.path.map(center), width: cell * 0.32, color: "#9AA3AD" });
+    const [a, b] = doors;
+    const points = [[a.x, a.y], ...page.path.map(center), [b.x, b.y]];
+    ops.push({ type: "path", points, width: cell * 0.32, color: "#9AA3AD" });
   }
 
   for (let r = 1; r < rows; r++) {
@@ -382,12 +414,27 @@ function drawMaze(page, showAnswer) {
     }
   }
 
-  const [sx, sy] = center(page.start);
-  const [ex, ey] = center(page.end);
-  ops.push({ type: "rect", x: left, y: top, w: width, h: height, stroke: "#000", width: MAZE_OUTER });
-  ops.push({ type: "circle", cx: sx, cy: sy, r: marker / 2, fill: "#000" });
-  ops.push({ type: "circle", cx: ex, cy: ey, r: marker / 2 - 0.75, fill: "#fff", stroke: "#000", width: 1.5 });
-  ops.push({ type: "circle", cx: ex, cy: ey, r: marker * 0.16, fill: "#000" });
+  const sides = [
+    ["top", cols, (k) => [left + k * cell, top]],
+    ["bottom", cols, (k) => [left + k * cell, top + height]],
+    ["left", rows, (k) => [left, top + k * cell]],
+    ["right", rows, (k) => [left + width, top + k * cell]],
+  ];
+  for (const [side, count, at] of sides) {
+    const gaps = doors.filter((d) => d.side === side).map((d) => d.index);
+    let from = 0;
+    for (let k = 0; k <= count; k++) {
+      if (k < count && !gaps.includes(k)) continue;
+      if (k > from) {
+        const [x1, y1] = at(from);
+        const [x2, y2] = at(k);
+        ops.push({ type: "line", x1, y1, x2, y2, width: MAZE_OUTER });
+      }
+      from = k + 1;
+    }
+  }
+
+  for (const d of doors) ops.push(...mazeArrow(d.x, d.y, d.dx, d.dy, cell));
   return ops;
 }
 
@@ -595,12 +642,14 @@ const DIRECTIONS = [
 ];
 const ALL_DIRS = DIRECTIONS[2];
 const DIR_NAMES = ["가로·세로", "대각선 포함", "거꾸로도 포함"];
-const LEVEL_NAMES = ["쉬움", "보통", "어려움"];
+const LEVEL_NAMES = ["적게", "보통", "많이"];
+const PRESET_NAMES = ["아주 쉬움", "쉬움", "보통", "어려움"];
 
-const WORD_SIDE = 8;
+const WORD_SIDE = 5;
+const WORD_TOP = 10;
 const WORD_W = PAGE.w - WORD_SIDE * 2;
-const WORD_BOTTOM = PAGE.h - 24;
-const CHIP = { size: 7, h: 12, pad: 4.5, gap: 4 };
+const WORD_BOTTOM = PAGE.h - 20;
+const CHIP = { size: 13, h: 20, pad: 7.5, gap: 4 };
 
 function chipWidth(word) {
   return [...word].length * CHIP.size * 0.98 + CHIP.pad * 2;
@@ -622,7 +671,7 @@ function chipLines(list) {
 }
 
 function boardTop(lineCount) {
-  return PAGE.top + lineCount * CHIP.h + (lineCount - 1) * CHIP.gap + 7;
+  return WORD_TOP + lineCount * CHIP.h + (lineCount - 1) * CHIP.gap + 5;
 }
 
 function findWord(grid, rows, cols, chars) {
@@ -690,7 +739,7 @@ function tryWordPage(random, rows, cols, wanted, dirs, pool, level, fill) {
   for (const word of pool) {
     if (placed.length === wanted) break;
     const chars = [...word];
-    if (chars.length > Math.min(rows, cols)) continue;
+    if (chars.length > Math.max(rows, cols)) continue;
     if (placed.some((p) => p.word.includes(word) || word.includes(p.word))) continue;
 
     for (let t = 0; t < 200; t++) {
@@ -755,15 +804,17 @@ function chooseWords(random, source, wanted, cols) {
 
 function wordSource(theme, custom, cols) {
   const own = parseCustomWords(custom).words.filter((w) => [...w].length <= cols);
-  if (theme === CUSTOM_THEME && own.length) return { source: own, fill: [...new Set([...FILL, ...own.join("")])] };
-  if (theme === 1 || theme === CUSTOM_THEME) return { source: ALL_WORDS, fill: FILL };
-  return { source: WORDS[THEMES[theme - 1]], fill: FILL };
+  if (theme === CUSTOM_THEME && own.length) return { source: own, fill: [...new Set([...FILL, ...own.join("")])], custom: true };
+  if (theme === 1 || theme === CUSTOM_THEME) return { source: ALL_WORDS, fill: FILL, custom: false };
+  return { source: WORDS[THEMES[theme - 1]], fill: FILL, custom: false };
 }
 
-function buildWords({ count, size, words, dir, level, theme, custom, seed }) {
+function buildWords({ count, size, words, dir, level, theme, custom, order, seed }) {
   const pages = [];
   const cols = size;
-  const { source, fill } = wordSource(theme, custom, cols);
+  const { source, fill, custom: own } = wordSource(theme, custom, cols);
+  const byInput = own && order === 1;
+  const arrange = (a, b) => (byInput ? source.indexOf(a) - source.indexOf(b) : a.localeCompare(b, "ko"));
   const dirs = DIRECTIONS[dir - 1];
   const cell = WORD_W / cols;
 
@@ -775,8 +826,8 @@ function buildWords({ count, size, words, dir, level, theme, custom, seed }) {
     let rows = cols;
     for (let t = 0; !result; t++) {
       if (t > 0 && t % 40 === 0 && wanted > 1) wanted--;
-      list = chooseWords(random, source, wanted, cols).sort((a, b) => a.localeCompare(b, "ko"));
-      rows = Math.max(cols, Math.floor((WORD_BOTTOM - boardTop(chipLines(list).length)) / cell));
+      list = chooseWords(random, source, wanted, cols).sort(arrange);
+      rows = Math.max(4, Math.floor((WORD_BOTTOM - boardTop(chipLines(list).length)) / cell));
       result = tryWordPage(random, rows, cols, list.length, dirs, list, level, fill);
     }
     pages.push({ rows, cols, grid: result.grid, placed: result.placed, list });
@@ -792,7 +843,7 @@ function drawWords(page, showAnswer) {
   lines.forEach((line, li) => {
     const total = line.reduce((s, w) => s + chipWidth(w), 0) + CHIP.gap * (line.length - 1);
     let x = (PAGE.w - total) / 2;
-    const y = PAGE.top + li * (CHIP.h + CHIP.gap);
+    const y = WORD_TOP + li * (CHIP.h + CHIP.gap);
     for (const word of line) {
       const w = chipWidth(word);
       ops.push({ type: "rect", x, y, w, h: CHIP.h, stroke: "#000", width: 0.5, radius: CHIP.h / 2 });
@@ -834,10 +885,16 @@ function drawWords(page, showAnswer) {
 const ACTIVITIES = {
   maze: {
     name: "미로",
+    presets: [
+      { first: 5, last: 8 },
+      { first: 6, last: 10 },
+      { first: 8, last: 14 },
+      { first: 12, last: 18 },
+    ],
     fields: [
       { key: "count", label: "장수", short: "장수", type: "range", min: 5, max: 60, step: 5, value: 30, show: (v) => `${v}장` },
-      { key: "first", label: "첫 장 가로 칸", short: "첫 장 가로 칸", type: "range", min: 5, max: 14, value: 8, show: (v) => `${v}칸 · 길 폭 약 ${(AREA_W / v - MAZE_INNER).toFixed(0)}mm` },
-      { key: "last", label: "마지막 장 가로 칸", short: "마지막 장 가로 칸", type: "range", min: 6, max: 18, value: 14, show: (v) => `${v}칸 · 길 폭 약 ${(AREA_W / v - MAZE_INNER).toFixed(0)}mm`, hint: "칸이 적을수록 길이 넓어집니다." },
+      { key: "first", label: "첫 장 가로 칸", short: "첫 장 가로 칸", type: "range", min: 5, max: 14, value: 8, show: (v) => `${v}칸 · 길 폭 약 ${(MAZE_W / v - MAZE_INNER).toFixed(0)}mm` },
+      { key: "last", label: "마지막 장 가로 칸", short: "마지막 장 가로 칸", type: "range", min: 6, max: 18, value: 14, show: (v) => `${v}칸 · 길 폭 약 ${(MAZE_W / v - MAZE_INNER).toFixed(0)}mm`, hint: "칸이 적을수록 길이 넓어집니다." },
       { key: "seed", label: "미로 번호", short: "미로 번호", type: "seed" },
     ],
     adjust(p) {
@@ -848,6 +905,12 @@ const ACTIVITIES = {
   },
   calc: {
     name: "계산",
+    presets: [
+      { tables: 1, size: 5, ops: "+", top: 1, left: 1 },
+      { tables: 1, size: 8, ops: "+−", top: 1, left: 1 },
+      { tables: 1, size: 10, ops: "+−×", top: 1, left: 1 },
+      { tables: 2, size: 10, ops: "+−×÷", top: 1, left: 2 },
+    ],
     fields: [
       { key: "count", label: "장수", short: "장수", type: "range", min: 5, max: 60, step: 5, value: 30, show: (v) => `${v}장` },
       { key: "tables", label: "한 장 표 개수", short: "표 개수", type: "range", min: 1, max: 2, value: 1, show: (v) => `${v}개` },
@@ -863,14 +926,21 @@ const ACTIVITIES = {
   },
   words: {
     name: "단어 찾기",
+    presets: [
+      { size: 5, words: 4, dir: 1, level: 1 },
+      { size: 6, words: 5, dir: 1, level: 2 },
+      { size: 8, words: 6, dir: 2, level: 2 },
+      { size: 10, words: 8, dir: 3, level: 3 },
+    ],
     fields: [
       { key: "count", label: "장수", short: "장수", type: "range", min: 5, max: 60, step: 5, value: 30, show: (v) => `${v}장` },
       { key: "size", label: "가로 칸", short: "가로 칸", type: "range", min: 5, max: 12, value: 8, show: (v) => `${v}칸 · 글자 약 ${Math.round(((WORD_W / v) * 0.56) / PT)}pt`, hint: "세로 칸은 종이 길이에 맞춰 늘어납니다." },
       { key: "words", label: "찾을 단어 수", short: "단어 수", type: "range", min: 3, max: 10, value: 6, show: (v) => `${v}개` },
       { key: "dir", label: "단어 방향", short: "방향", type: "select", options: DIR_NAMES, value: 2 },
-      { key: "level", label: "난이도", short: "난이도", type: "select", options: LEVEL_NAMES, value: 2, hint: "쉬움은 찾을 단어의 글자가 다른 칸에 나오지 않고, 어려움은 단어 앞부분만 있는 가짜 단서와 비슷한 글자가 많이 섞입니다." },
+      { key: "level", label: "헷갈리는 글자", short: "헷갈림", type: "select", options: LEVEL_NAMES, value: 2, hint: "적게는 찾을 단어의 글자가 다른 칸에 나오지 않고, 많이는 단어 앞부분만 있는 가짜 단서와 비슷한 글자가 많이 섞입니다." },
       { key: "theme", label: "단어 주제", short: "주제", type: "select", options: [...THEMES, "직접 넣은 단어"], value: 1 },
       { key: "custom", label: "직접 넣을 단어", type: "words", tag: false, hint: "띄어쓰기나 쉼표로 나눠 적고, 주제를 ‘직접 넣은 단어’로 고르면 이 단어들로만 만듭니다." },
+      { key: "order", label: "위에 적는 순서", type: "select", options: ["입력한 순서", "가나다 순"], value: 1, tag: false, hint: "직접 넣은 단어로 만들 때, 종이 위쪽 단어를 어떤 순서로 적을지 고릅니다." },
       { key: "seed", label: "문제 번호", short: "문제 번호", type: "seed" },
     ],
     adjust() {},
@@ -906,6 +976,8 @@ function toSvg(ops, label) {
       svg += `<polyline points="${o.points.map(([x, y]) => `${n(x)},${n(y)}`).join(" ")}" fill="none" stroke="${o.color}" stroke-width="${n(o.width)}" stroke-linecap="round" stroke-linejoin="round"/>`;
     } else if (o.type === "rect") {
       svg += `<rect x="${n(o.x)}" y="${n(o.y)}" width="${n(o.w)}" height="${n(o.h)}" rx="${o.radius || 0}" fill="${o.fill || "none"}" stroke="${o.stroke || "none"}" stroke-width="${o.width || 0}" stroke-linejoin="round"/>`;
+    } else if (o.type === "triangle") {
+      svg += `<polygon points="${o.points.map(([x, y]) => `${n(x)},${n(y)}`).join(" ")}" fill="${o.fill}"/>`;
     } else if (o.type === "circle") {
       svg += `<circle cx="${n(o.cx)}" cy="${n(o.cy)}" r="${n(o.r)}" fill="${o.fill || "none"}" stroke="${o.stroke || "none"}" stroke-width="${o.width || 0}"/>`;
     } else if (o.type === "text") {
@@ -934,6 +1006,9 @@ function drawPdf(doc, ops) {
       doc.setDrawColor(...rgb(o.color));
       doc.setLineWidth(o.width);
       for (let k = 1; k < o.points.length; k++) doc.line(...o.points[k - 1], ...o.points[k]);
+    } else if (o.type === "triangle") {
+      doc.setFillColor(...rgb(o.fill));
+      doc.triangle(...o.points.flat(), "F");
     } else if (o.type === "rect" || o.type === "circle") {
       const style = o.fill && o.stroke ? "FD" : o.fill ? "F" : "S";
       if (o.fill) doc.setFillColor(...rgb(o.fill));
@@ -956,7 +1031,7 @@ function pageOps(index, showAnswer, small) {
   const activity = ACTIVITIES[state.act];
   const ops = activity.draw(state.pages[index], showAnswer);
   ops.push({ type: "text", x: PAGE.left, y: 7, size: 2.1, text: tagText(), color: "#787878" });
-  ops.push({ type: "text", x: PAGE.w / 2, y: PAGE.numY, size: small ? 14 : 8.5, text: String(index + 1), align: "center" });
+  ops.push({ type: "text", x: PAGE.w / 2, y: PAGE.numY, size: small ? 14 : 11, text: String(index + 1), align: "center" });
   return ops;
 }
 
@@ -995,10 +1070,24 @@ function fieldHtml(act, f) {
     + `<button type="button" data-shuffle="${id}">새로 섞기</button></div></div>`;
 }
 
+function presetHtml(act) {
+  const buttons = PRESET_NAMES.map((name, i) => `<button type="button" data-preset="${i}">${name}</button>`).join("");
+  return `<div class="field"><span class="lbl" id="${act}-preset-label">난이도 한 번에 고르기</span>`
+    + `<div class="presets" id="${act}-presets" role="group" aria-labelledby="${act}-preset-label">${buttons}</div>`
+    + `<p class="hint">누르면 아래 값이 단계에 맞게 바뀝니다. 장수와 번호는 그대로이고, 아래에서 더 세밀하게 고칠 수 있습니다.</p></div>`;
+}
+
 function renderControls() {
   $("controls").innerHTML = Object.entries(ACTIVITIES)
-    .map(([act, a]) => `<div data-panel="${act}" hidden>${a.fields.map((f) => fieldHtml(act, f)).join("")}</div>`)
+    .map(([act, a]) => `<div data-panel="${act}" hidden>${presetHtml(act)}${a.fields.map((f) => fieldHtml(act, f)).join("")}</div>`)
     .join("");
+}
+
+function markPreset(act, params) {
+  ACTIVITIES[act].presets.forEach((preset, i) => {
+    const same = Object.entries(preset).every(([key, value]) => params[key] === value);
+    $(`${act}-presets`).querySelector(`[data-preset="${i}"]`).setAttribute("aria-pressed", String(same));
+  });
 }
 
 function readParams(act) {
@@ -1014,7 +1103,7 @@ function readParams(act) {
       if (digits !== el.value) el.value = digits;
       params[f.key] = digits || "1";
     } else {
-      params[f.key] = Number(el.value);
+      params[f.key] = el.value.startsWith("set:") ? CUSTOM_THEME : Number(el.value);
     }
   }
   return params;
@@ -1026,7 +1115,7 @@ function writeParams(act, params) {
     const el = $(`${act}-${f.key}`);
     if (f.type === "ops") {
       el.querySelectorAll("[data-op]").forEach((b) => b.setAttribute("aria-pressed", String(params[f.key].includes(b.dataset.op))));
-    } else {
+    } else if (!(String(el.value).startsWith("set:") && params[f.key] === CUSTOM_THEME)) {
       el.value = params[f.key];
     }
   }
@@ -1099,9 +1188,11 @@ function update() {
     if (f.type === "words") $(`${state.act}-${f.key}-note`).textContent = activity.note ? activity.note(params) : "";
   }
 
+  markPreset(state.act, params);
   state.params = params;
   state.pages = activity.build(params);
   renderTag();
+  renderMade();
   renderTabs();
   renderGrid();
 }
@@ -1155,28 +1246,38 @@ $("acts").addEventListener("click", (event) => {
 const STORE_KEY = "for-my-grandparents:custom-words";
 let typingTimer = 0;
 
-function remember(text) {
+const ORDER_KEY = "for-my-grandparents:custom-order";
+
+function remember(key, text) {
   try {
-    localStorage.setItem(STORE_KEY, text);
+    localStorage.setItem(key, text);
   } catch (error) {
     return;
   }
 }
 
-function recall() {
+function recall(key) {
   try {
-    return localStorage.getItem(STORE_KEY) || "";
+    return localStorage.getItem(key) || "";
   } catch (error) {
     return "";
   }
 }
 
-$("words-custom").value = recall();
+$("words-custom").value = recall(STORE_KEY);
+$("words-order").value = recall(ORDER_KEY) || "1";
 
 $("controls").addEventListener("input", (event) => {
+  if (event.target.id === "words-theme" && event.target.value.startsWith("set:")) {
+    $("words-custom").value = event.target.value.slice(4);
+    remember(STORE_KEY, $("words-custom").value);
+  }
+  if (event.target.id === "words-order") remember(ORDER_KEY, event.target.value);
   if (event.target.type === "range" || event.target.tagName === "SELECT") update();
   if (event.target.tagName === "TEXTAREA") {
-    remember(event.target.value);
+    const theme = $("words-theme");
+    if (theme.value.startsWith("set:") && theme.value.slice(4) !== event.target.value.trim()) theme.value = String(CUSTOM_THEME);
+    remember(STORE_KEY, event.target.value);
     clearTimeout(typingTimer);
     typingTimer = setTimeout(update, 400);
   }
@@ -1185,6 +1286,12 @@ $("controls").addEventListener("change", (event) => {
   if (event.target.type === "text") update();
 });
 $("controls").addEventListener("click", (event) => {
+  const preset = event.target.closest("[data-preset]");
+  if (preset) {
+    writeParams(state.act, ACTIVITIES[state.act].presets[Number(preset.dataset.preset)]);
+    update();
+    return;
+  }
   const op = event.target.closest("[data-op]");
   if (op) {
     const pressed = op.getAttribute("aria-pressed") === "true";
@@ -1209,18 +1316,118 @@ $("tabs").addEventListener("click", (event) => {
   renderGrid();
 });
 
-$("restoreBtn").addEventListener("click", () => {
-  const params = parseRestore($("restore").value);
-  if (!params) {
-    $("restoreMsg").textContent = `값 ${tagFields(state.act).length}개를 순서대로 적어 주세요. 예: ${tagText().replace(/\s+/g, " ")}`;
-    return;
+const MADE_KEY = "for-my-grandparents:made";
+const shared = { list: [], save() {}, saveWords() {} };
+
+function madeLists() {
+  try {
+    return JSON.parse(localStorage.getItem(MADE_KEY)) || {};
+  } catch (error) {
+    return {};
   }
+}
+
+function madeFor(act) {
+  const fromShared = shared.list
+    .filter((item) => item.act === act && Array.isArray(item.values))
+    .sort((a, b) => (b.at || 0) - (a.at || 0))
+    .map((item) => item.values.map(String));
+  const seen = new Set();
+  return [...fromShared, ...(madeLists()[act] || [])].filter((values) => {
+    const key = values.join(" ");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function wordSets() {
+  const fromShared = shared.list
+    .filter((item) => item.kind === "custom" && Array.isArray(item.words))
+    .sort((a, b) => (b.at || 0) - (a.at || 0))
+    .map((item) => item.words.map(String));
+  const seen = new Set();
+  return [...fromShared, ...(madeLists().customWords || [])].filter((words) => {
+    const key = words.join(" ");
+    if (!words.length || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderThemes() {
+  const select = $("words-theme");
+  const current = select.value;
+  const base = [...THEMES, "직접 넣은 단어"].map((name, i) => `<option value="${i + 1}">${name}</option>`);
+  const sets = wordSets().map((words) => {
+    const value = `set:${words.join(" ")}`;
+    return `<option value="${escapeXml(value)}">직접 넣은 단어 (${escapeXml(words.join(", "))})</option>`;
+  });
+  select.innerHTML = [...base, ...sets].join("");
+  select.value = [...select.options].some((o) => o.value === current) ? current : String(CUSTOM_THEME);
+}
+
+function renderMade() {
+  renderThemes();
+  const list = madeFor(state.act);
+  $("made").innerHTML = list
+    .map((values) => `<li><button type="button" data-made="${escapeXml(values.join(" "))}">(${escapeXml(values.join(", "))})</button></li>`)
+    .join("");
+  $("made").hidden = !list.length;
+}
+
+function saveLocal(lists) {
+  try {
+    localStorage.setItem(MADE_KEY, JSON.stringify(lists));
+  } catch (error) {
+    return false;
+  }
+  return true;
+}
+
+function recordWords() {
+  const words = parseCustomWords(state.params.custom).words;
+  if (!words.length) return;
+  const lists = madeLists();
+  const key = words.join(" ");
+  lists.customWords = [words, ...(lists.customWords || []).filter((w) => w.join(" ") !== key)].slice(0, 30);
+  saveLocal(lists);
+  shared.saveWords(words);
+}
+
+function recordMade() {
+  const lists = madeLists();
+  const values = tagFields(state.act).map((f) => String(state.params[f.key]));
+  const key = values.join(" ");
+  lists[state.act] = [values, ...(lists[state.act] || []).filter((v) => v.join(" ") !== key)].slice(0, 30);
+  saveLocal(lists);
+  shared.save(state.act, values);
+  if (state.act === "words" && state.params.theme === CUSTOM_THEME) recordWords();
+  renderMade();
+}
+
+function applyValues(text) {
+  const params = parseRestore(text);
+  if (!params) return false;
   writeParams(state.act, params);
   state.tab = -1;
   update();
+  recordMade();
   $("restoreMsg").textContent = state.act === "words" && params.theme === CUSTOM_THEME
     ? "불러왔습니다. 직접 넣은 단어는 숫자에 담기지 않아서, 같은 단어가 적혀 있어야 같은 판이 나옵니다."
     : "불러왔습니다.";
+  return true;
+}
+
+$("restoreBtn").addEventListener("click", () => {
+  if (!applyValues($("restore").value)) {
+    $("restoreMsg").textContent = `값 ${tagFields(state.act).length}개를 순서대로 적어 주세요. 예: ${tagText().replace(/\s+/g, " ")}`;
+  }
+});
+
+$("made").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-made]");
+  if (button) applyValues(button.dataset.made);
 });
 
 function showCurrent() {
@@ -1289,6 +1496,7 @@ async function savePdf(showAnswer) {
     });
     const name = ACTIVITIES[state.act].name.replace(/\s/g, "");
     const values = tagText().split(/\s+/).join("_");
+    recordMade();
     await saveFile(`${name}${showAnswer ? "_정답" : ""}_${values}.pdf`, doc.output("blob"));
   } catch (error) {
     message.textContent = "PDF를 만들지 못했습니다. 다시 시도해 주세요.";
